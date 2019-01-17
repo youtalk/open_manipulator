@@ -148,12 +148,11 @@ void *OM_CONTROLLER::commTimerThread(void *param)
      double delta_nsec = controller->getControlPeriod() - ((next_time.tv_sec - curr_time.tv_sec) + ((double)(next_time.tv_nsec - curr_time.tv_nsec)*0.000000001));
      if(delta_nsec > controller->getControlPeriod())
      {
-       RM_LOG::WARN("Communication cycle time exceeded. : ", delta_nsec,5);
+       RM_LOG::WARN("Communication cycle time exceeded. : ", delta_nsec);
        next_time = curr_time;
      }
      else
      {
-       //RM_LOG::PRINTLN("Communication cycle time : ", delta_nsec, 5, "GREEN");
        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_time, NULL);
      }
      /////
@@ -200,28 +199,26 @@ void *OM_CONTROLLER::calThread(void *param)
     if(tempJointWayPoint.size() != 0)
     {
       controller->joint_way_point_buf_.push(tempJointWayPoint);
-      if(!controller->open_manipulator_.isMoving() && trajectory_progress < 100) // error
-      {
-        RM_LOG::ERROR("[cal thread] Trajectory creation failed ");
-        controller->cal_thread_flag_ = false;
-        controller->moving_trajectory_flag_ = true;
-      }
-      else
-      {
-        RM_LOG::PRINT("\r[cal thread] Trajectory creation : ",trajectory_progress , 0);
-        RM_LOG::PRINT(" %");
-      }
 
-//       RM_LOG::PRINT("[cal thread]");
-//       RM_LOG::PRINT(" j1 ", tempJointWayPoint.at(0).position);
-//       RM_LOG::PRINT(" j2 ", tempJointWayPoint.at(1).position);
-//       RM_LOG::PRINT(" j3 ", tempJointWayPoint.at(2).position);
-//       RM_LOG::PRINT(" j4 ", tempJointWayPoint.at(3).position);
-//       RM_LOG::PRINT(" size ", controller->joint_way_point_buf_.size());
-//       RM_LOG::PRINT(" tick_time : ", tick_time);
-//       RM_LOG::PRINTLN(" ");
+      // debug
+      if(controller->using_moveit_ == false)
+      {
+        if(!controller->open_manipulator_.isMoving() && trajectory_progress < 100) // error
+        {
+          char str[100];
+          sprintf(str, "[cal thread] Trajectory creation failed : %d %%", trajectory_progress);
+          RM_LOG::ERROR(str);
+          controller->cal_thread_flag_ = false;
+          controller->moving_trajectory_flag_ = true;
+        }
+        else
+        {
+          RM_LOG::PRINT("[cal thread] Trajectory creation :",trajectory_progress , 0);
+          RM_LOG::PRINT(" %\r");
+        }
+      }
+      /////////
     }
-
 
     if(controller->tool_ctrl_flag_)
     {
@@ -592,7 +589,7 @@ bool OM_CONTROLLER::setActuatorStateCallback(open_manipulator_msgs::SetActuatorS
 {
   if(req.set_actuator_state == true) // torque on
   {
-    RM_LOG::PRINTLN("Wait a second for actuator enable", "GREEN");
+    RM_LOG::PRINTLN("[Set actuator state] Wait a second for actuator enable", "GREEN");
     waitCommThreadToTerminate();
     open_manipulator_.allActuatorEnable();
 
@@ -607,7 +604,7 @@ bool OM_CONTROLLER::setActuatorStateCallback(open_manipulator_msgs::SetActuatorS
   }
   else // torque off
   {
-    RM_LOG::PRINTLN("Wait a second for actuator disable", "GREEN");
+    RM_LOG::PRINTLN("[Set actuator state] Wait a second for actuator disable", "GREEN");
     waitCommThreadToTerminate();
     open_manipulator_.allActuatorDisable();
     startCommTimerThread();
@@ -974,6 +971,7 @@ void OM_CONTROLLER::moveitProcess(JointWayPoint* goal_joint_value)
     {
       step_cnt = 0;
       moveit_plan_flag_ = false;
+      moving_trajectory_flag_ = true;
     }
   }
 }
