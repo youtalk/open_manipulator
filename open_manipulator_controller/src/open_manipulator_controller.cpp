@@ -27,6 +27,7 @@ OM_CONTROLLER::OM_CONTROLLER(std::string usb_port, std::string baud_rate)
      comm_timer_thread_flag_(false),
      cal_thread_flag_(false),
      moveit_plan_flag_(false),
+     moving_trajectory_flag_(false),
      using_platform_(false),
      using_moveit_(false),
      moveit_plan_only_(true),
@@ -111,27 +112,28 @@ void *OM_CONTROLLER::commTimerThread(void *param)
 
     pthread_mutex_lock(&(controller->mutex_));  // mutex lock
 
-    if(controller->joint_way_point_buf_.size()) // get JointWayPoint for transfer to actuator
+    if(controller->moving_trajectory_flag_ == true)
     {
-      tx_joint_way_point = controller->joint_way_point_buf_.front();
-      controller->present_joint_value = tx_joint_way_point;
-      controller->joint_way_point_buf_.pop();
-       RM_LOG::PRINT("[comm thread] ", "BLUE");
-       RM_LOG::PRINT(" j1 ", tx_joint_way_point.at(0).position, 3, "BLUE");
-       RM_LOG::PRINT(" j2 ", tx_joint_way_point.at(1).position, 3, "BLUE");
-       RM_LOG::PRINT(" j3 ", tx_joint_way_point.at(2).position, 3, "BLUE");
-       RM_LOG::PRINT(" j4 ", tx_joint_way_point.at(3).position, 3, "BLUE");
-       RM_LOG::PRINT(" size ", controller->joint_way_point_buf_.size(), 3, "BLUE");
-       RM_LOG::PRINTLN(" ");
-    }
-    if(controller->tool_way_point_buf_.size())  // get ToolWayPoint for transfer to actuator
-    {
-      tx_tool_way_point = controller->tool_way_point_buf_.front();
-      controller->tool_way_point_buf_.pop();
-//      RM_LOG::PRINT("[comm thread] ", "BLUE");
-//      RM_LOG::PRINT(" tool ", tx_tool_way_point.at(0).position, 3, "BLUE");
-//      RM_LOG::PRINT(" size ", controller->tool_way_point_buf_.size(), 3, "BLUE");
-//      RM_LOG::PRINTLN(" ");
+      if(controller->joint_way_point_buf_.size()) // get JointWayPoint for transfer to actuator
+      {
+        tx_joint_way_point = controller->joint_way_point_buf_.front();
+        controller->present_joint_value = tx_joint_way_point;
+        controller->joint_way_point_buf_.pop();
+//         RM_LOG::PRINT("[comm thread] ", "BLUE");
+//         RM_LOG::PRINT(" j1 ", tx_joint_way_point.at(0).position, 3, "BLUE");
+//         RM_LOG::PRINT(" j2 ", tx_joint_way_point.at(1).position, 3, "BLUE");
+//         RM_LOG::PRINT(" j3 ", tx_joint_way_point.at(2).position, 3, "BLUE");
+//         RM_LOG::PRINT(" j4 ", tx_joint_way_point.at(3).position, 3, "BLUE");
+//         RM_LOG::PRINT(" size ", controller->joint_way_point_buf_.size(), 3, "BLUE");
+//         RM_LOG::PRINTLN(" ");
+      }
+      else
+        controller->moving_trajectory_flag_ = false;
+      if(controller->tool_way_point_buf_.size())  // get ToolWayPoint for transfer to actuator
+      {
+        tx_tool_way_point = controller->tool_way_point_buf_.front();
+        controller->tool_way_point_buf_.pop();
+      }
     }
 
     pthread_mutex_unlock(&(controller->mutex_)); // mutex unlock
@@ -151,7 +153,7 @@ void *OM_CONTROLLER::commTimerThread(void *param)
      }
      else
      {
-       RM_LOG::PRINTLN("Communication cycle time : ", delta_nsec, 5, "GREEN");
+       //RM_LOG::PRINTLN("Communication cycle time : ", delta_nsec, 5, "GREEN");
        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_time, NULL);
      }
      /////
@@ -184,6 +186,7 @@ void *OM_CONTROLLER::calThread(void *param)
   while(controller->cal_thread_flag_)
   {
     tick_time += controller->getControlPeriod();
+    int trajectory_progress = tick_time/controller->open_manipulator_.getTrajectoryMoveTime()*100;
 
     JointWayPoint tempJointWayPoint;
     JointWayPoint tempToolWayPoint;
@@ -197,29 +200,45 @@ void *OM_CONTROLLER::calThread(void *param)
     if(tempJointWayPoint.size() != 0)
     {
       controller->joint_way_point_buf_.push(tempJointWayPoint);
-       RM_LOG::PRINT("[cal thread]");
-       RM_LOG::PRINT(" j1 ", tempJointWayPoint.at(0).position);
-       RM_LOG::PRINT(" j2 ", tempJointWayPoint.at(1).position);
-       RM_LOG::PRINT(" j3 ", tempJointWayPoint.at(2).position);
-       RM_LOG::PRINT(" j4 ", tempJointWayPoint.at(3).position);
-       RM_LOG::PRINT(" size ", controller->joint_way_point_buf_.size());
-       RM_LOG::PRINT(" tick_time : ", tick_time);
-       RM_LOG::PRINTLN(" ");
+      if(!controller->open_manipulator_.isMoving() && trajectory_progress < 100) // error
+      {
+        RM_LOG::ERROR("[cal thread] Trajectory creation failed ");
+        controller->cal_thread_flag_ = false;
+        controller->moving_trajectory_flag_ = true;
+      }
+      else
+      {
+        RM_LOG::PRINT("\r[cal thread] Trajectory creation : ",trajectory_progress , 0);
+        RM_LOG::PRINT(" %");
+      }
+
+//       RM_LOG::PRINT("[cal thread]");
+//       RM_LOG::PRINT(" j1 ", tempJointWayPoint.at(0).position);
+//       RM_LOG::PRINT(" j2 ", tempJointWayPoint.at(1).position);
+//       RM_LOG::PRINT(" j3 ", tempJointWayPoint.at(2).position);
+//       RM_LOG::PRINT(" j4 ", tempJointWayPoint.at(3).position);
+//       RM_LOG::PRINT(" size ", controller->joint_way_point_buf_.size());
+//       RM_LOG::PRINT(" tick_time : ", tick_time);
+//       RM_LOG::PRINTLN(" ");
     }
+
+
     if(controller->tool_ctrl_flag_)
     {
       controller->tool_way_point_buf_.push(tempToolWayPoint);
       controller->tool_ctrl_flag_ = false;
-//      RM_LOG::PRINT("[cal thread]");
-//      RM_LOG::PRINT(" tool ", tempToolWayPoint.at(0).position);
-//      RM_LOG::PRINT(" size ", controller->tool_way_point_buf_.size());
-//      RM_LOG::PRINTLN(" ");
     }
-    pthread_mutex_unlock(&(controller->mutex_)); // mutex unlock
 
     if(controller->using_moveit_ == false)
       if(controller->open_manipulator_.getTrajectoryMoveTime() < tick_time)
+      {
+        if(tempJointWayPoint.size() != 0)
+          RM_LOG::PRINTLN("\n[cal thread] Trajectory creation succeeded ");
         controller->cal_thread_flag_ = false;
+        controller->moving_trajectory_flag_ = true;
+      }
+    pthread_mutex_unlock(&(controller->mutex_)); // mutex unlock
+
   }
   return 0;
 }
@@ -229,8 +248,17 @@ void OM_CONTROLLER::waitCalThreadToTerminate()
   cal_thread_flag_ = false;
   pthread_join(cal_thread_, NULL); // Wait for the thread associated with thread_p to complete
 }
-void OM_CONTROLLER::jointWayPointBufClear()
+void OM_CONTROLLER::trajectoryBufferClear()
 {
+  moving_trajectory_flag_ = false;
+  if(joint_way_point_buf_.size())
+  {
+    for(int i = 0; i < open_manipulator_.getManipulator()->getDOF(); i ++)
+    {
+      present_joint_value.at(i).velocity = 0.0;
+      present_joint_value.at(i).acceleration = 0.0;
+    }
+  }
   std::queue<JointWayPoint>().swap(joint_way_point_buf_);
 }
 
@@ -326,7 +354,7 @@ void OM_CONTROLLER::displayPlannedPathCallback(const moveit_msgs::DisplayTraject
     waitCalThreadToTerminate();
     pthread_mutex_lock(&mutex_); // mutex lock
     {
-      jointWayPointBufClear();
+      trajectoryBufferClear();
       joint_trajectory_ = joint_trajectory_planned;
       moveit_plan_flag_ = true;
     }
@@ -349,7 +377,7 @@ void OM_CONTROLLER::executeTrajGoalCallback(const moveit_msgs::ExecuteTrajectory
   waitCalThreadToTerminate();
   pthread_mutex_lock(&mutex_); // mutex lock
   {
-    jointWayPointBufClear();
+    trajectoryBufferClear();
     joint_trajectory_ = msg->goal.trajectory.joint_trajectory;
     moveit_plan_flag_ = true;
   }
@@ -369,7 +397,7 @@ bool OM_CONTROLLER::goalJointSpacePathCallback(open_manipulator_msgs::SetJointPo
   waitCalThreadToTerminate();
   pthread_mutex_lock(&mutex_); // mutex lock
   {
-    jointWayPointBufClear();
+    trajectoryBufferClear();
     open_manipulator_.jointTrajectoryMove(target_angle, req.path_time, present_joint_value);
   }
   pthread_mutex_unlock(&mutex_); // mutex unlock
@@ -396,7 +424,7 @@ bool OM_CONTROLLER::goalTaskSpacePathCallback(open_manipulator_msgs::SetKinemati
   waitCalThreadToTerminate();
   pthread_mutex_lock(&mutex_); // mutex lock
   {
-    jointWayPointBufClear();
+    trajectoryBufferClear();
     open_manipulator_.taskTrajectoryMove(req.end_effector_name, target_pose, req.path_time, present_joint_value);
   }
   pthread_mutex_unlock(&mutex_); // mutex unlock
@@ -417,7 +445,7 @@ bool OM_CONTROLLER::goalTaskSpacePathPositionOnlyCallback(open_manipulator_msgs:
   waitCalThreadToTerminate();
   pthread_mutex_lock(&mutex_); // mutex lock
   {
-    jointWayPointBufClear();
+    trajectoryBufferClear();
     open_manipulator_.taskTrajectoryMove(req.end_effector_name, position, req.path_time, present_joint_value);
   }
   pthread_mutex_unlock(&mutex_); // mutex unlock
@@ -440,7 +468,7 @@ bool OM_CONTROLLER::goalTaskSpacePathOrientationOnlyCallback(open_manipulator_ms
   waitCalThreadToTerminate();
   pthread_mutex_lock(&mutex_); // mutex lock
   {
-    jointWayPointBufClear();
+    trajectoryBufferClear();
     open_manipulator_.taskTrajectoryMove(req.end_effector_name, orientation, req.path_time, present_joint_value);
   }
   pthread_mutex_unlock(&mutex_); // mutex unlock
@@ -461,7 +489,7 @@ bool OM_CONTROLLER::goalJointSpacePathToPresentCallback(open_manipulator_msgs::S
   waitCalThreadToTerminate();
   pthread_mutex_lock(&mutex_); // mutex lock
   {
-    jointWayPointBufClear();
+    trajectoryBufferClear();
     open_manipulator_.jointTrajectoryMoveToPresentPosition(target_angle, req.path_time, present_joint_value);
   }
   pthread_mutex_unlock(&mutex_); // mutex unlock
@@ -489,7 +517,7 @@ bool OM_CONTROLLER::goalTaskSpacePathToPresentCallback(open_manipulator_msgs::Se
   waitCalThreadToTerminate();
   pthread_mutex_lock(&mutex_); // mutex lock
   {
-    jointWayPointBufClear();
+    trajectoryBufferClear();
     open_manipulator_.taskTrajectoryMoveToPresentPose(req.planning_group, target_pose, req.path_time, present_joint_value);
   }
   pthread_mutex_unlock(&mutex_); // mutex unlock
@@ -510,7 +538,7 @@ bool OM_CONTROLLER::goalTaskSpacePathToPresentPositionOnlyCallback(open_manipula
   waitCalThreadToTerminate();
   pthread_mutex_lock(&mutex_); // mutex lock
   {
-    jointWayPointBufClear();
+    trajectoryBufferClear();
     open_manipulator_.taskTrajectoryMoveToPresentPose(req.planning_group, position, req.path_time, present_joint_value);
   }
   pthread_mutex_unlock(&mutex_); // mutex unlock
@@ -533,7 +561,7 @@ bool OM_CONTROLLER::goalTaskSpacePathToPresentOrientationOnlyCallback(open_manip
   waitCalThreadToTerminate();
   pthread_mutex_lock(&mutex_); // mutex lock
   {
-    jointWayPointBufClear();
+    trajectoryBufferClear();
     open_manipulator_.taskTrajectoryMoveToPresentPose(req.planning_group, orientation, req.path_time, present_joint_value);
   }
   pthread_mutex_unlock(&mutex_); // mutex unlock
@@ -564,12 +592,13 @@ bool OM_CONTROLLER::setActuatorStateCallback(open_manipulator_msgs::SetActuatorS
 {
   if(req.set_actuator_state == true) // torque on
   {
-    RM_LOG::PRINTLN("Wait a second for actuator enable", "BLUE");
+    RM_LOG::PRINTLN("Wait a second for actuator enable", "GREEN");
     waitCommThreadToTerminate();
     open_manipulator_.allActuatorEnable();
 
     pthread_mutex_lock(&mutex_); // mutex lock
     {
+      moving_trajectory_flag_ = false;
       present_joint_value = open_manipulator_.receiveAllJointActuatorValue();
     }
     pthread_mutex_unlock(&mutex_); // mutex unlock
@@ -578,7 +607,7 @@ bool OM_CONTROLLER::setActuatorStateCallback(open_manipulator_msgs::SetActuatorS
   }
   else // torque off
   {
-    RM_LOG::PRINTLN("Wait a second for actuator disable", "BLUE");
+    RM_LOG::PRINTLN("Wait a second for actuator disable", "GREEN");
     waitCommThreadToTerminate();
     open_manipulator_.allActuatorDisable();
     startCommTimerThread();
@@ -604,7 +633,7 @@ bool OM_CONTROLLER::goalDrawingTrajectoryCallback(open_manipulator_msgs::SetDraw
       waitCalThreadToTerminate();
       pthread_mutex_lock(&mutex_); // mutex lock
       {
-        jointWayPointBufClear();
+        trajectoryBufferClear();
         open_manipulator_.customTrajectoryMove(DRAWING_CIRCLE, req.end_effector_name, p_draw_circle_arg, req.path_time, present_joint_value);
       }
       pthread_mutex_unlock(&mutex_); // mutex unlock
@@ -621,8 +650,8 @@ bool OM_CONTROLLER::goalDrawingTrajectoryCallback(open_manipulator_msgs::SetDraw
       waitCalThreadToTerminate();
       pthread_mutex_lock(&mutex_); // mutex lock
       {
-        jointWayPointBufClear();
-        open_manipulator_.customTrajectoryMove(DRAWING_LINE, req.end_effector_name, p_draw_line_arg, req.path_time);//, present_joint_value);
+        trajectoryBufferClear();
+        open_manipulator_.customTrajectoryMove(DRAWING_LINE, req.end_effector_name, p_draw_line_arg, req.path_time, present_joint_value);
       }
       pthread_mutex_unlock(&mutex_); // mutex unlock
       startCalThread();
@@ -638,7 +667,7 @@ bool OM_CONTROLLER::goalDrawingTrajectoryCallback(open_manipulator_msgs::SetDraw
       waitCalThreadToTerminate();
       pthread_mutex_lock(&mutex_); // mutex lock
       {
-        jointWayPointBufClear();
+        trajectoryBufferClear();
         open_manipulator_.customTrajectoryMove(DRAWING_RHOMBUS, req.end_effector_name, p_draw_circle_arg, req.path_time, present_joint_value);
       }
       pthread_mutex_unlock(&mutex_); // mutex unlock
@@ -655,7 +684,7 @@ bool OM_CONTROLLER::goalDrawingTrajectoryCallback(open_manipulator_msgs::SetDraw
       waitCalThreadToTerminate();
       pthread_mutex_lock(&mutex_); // mutex lock
       {
-        jointWayPointBufClear();
+        trajectoryBufferClear();
         open_manipulator_.customTrajectoryMove(DRAWING_HEART, req.end_effector_name, p_draw_circle_arg, req.path_time, present_joint_value);
       }
       pthread_mutex_unlock(&mutex_); // mutex unlock

@@ -643,7 +643,7 @@ bool CR_SRJacobian_Solver::inverseSolverUsingSRJacobian(Manipulator *manipulator
       forwardKinematics(&_manipulator);
     }
   }
-  RM_LOG::ERROR("[sr]fail to solve inverse kinematics (please change the solver)");
+  RM_LOG::ERROR("[sr] fail to solve inverse kinematics (please change the solver)");
   *goal_joint_value = {};
   return false;
 }
@@ -1017,7 +1017,7 @@ bool CR_Position_Only_Jacobian_Solver::inverseSolverUsingPositionOnlySRJacobian(
       forwardKinematics(&_manipulator);
     }
   }
-  RM_LOG::ERROR("[position_only]fail to solve inverse kinematics (please change the solver)");
+  RM_LOG::ERROR("[position_only] fail to solve inverse kinematics (please change the solver)");
   *goal_joint_value = {};
   return false;
 }
@@ -1404,7 +1404,7 @@ bool CR_Custom_Solver::chainCustomInverseKinematics(Manipulator *manipulator, Na
       forwardKinematics(&_manipulator);
     }
   }
-  RM_LOG::ERROR("[OpenManipulator Chain Custom]fail to solve inverse kinematics");
+  RM_LOG::ERROR("[OpenManipulator Chain Custom] fail to solve inverse kinematics");
   *goal_joint_value = {};
   return false;
 }

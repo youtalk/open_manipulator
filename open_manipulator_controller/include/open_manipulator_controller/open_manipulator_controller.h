@@ -121,6 +121,7 @@ class OM_CONTROLLER
   bool comm_timer_thread_flag_;
   bool cal_thread_flag_;
   bool moveit_plan_flag_;
+  bool moving_trajectory_flag_;
 
  public:
   OM_CONTROLLER(std::string usb_port, std::string baud_rate);
@@ -193,7 +194,7 @@ class OM_CONTROLLER
   static void *calThread(void *param);
   void waitCalThreadToTerminate();
 
-  void jointWayPointBufClear();
+  void trajectoryBufferClear();
 
   void moveitProcess(JointWayPoint *goal_joint_value);
 
