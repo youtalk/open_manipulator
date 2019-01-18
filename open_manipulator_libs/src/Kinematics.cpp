@@ -27,8 +27,6 @@ using namespace KINEMATICS;
 
 void CR_Jacobian_Solver::setOption(const void *arg){}
 
-void CR_Jacobian_Solver::updatePassiveJointValue(Manipulator *manipulator){}
-
 Eigen::MatrixXd CR_Jacobian_Solver::jacobian(Manipulator *manipulator, Name tool_name)
 {
   Eigen::MatrixXd jacobian = Eigen::MatrixXd::Identity(6, manipulator->getDOF());
@@ -286,8 +284,6 @@ bool CR_Jacobian_Solver::inverseSolverUsingJacobian(Manipulator *manipulator, Na
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void CR_SRJacobian_Solver::setOption(const void *arg){}
-
-void CR_SRJacobian_Solver::updatePassiveJointValue(Manipulator *manipulator){}
 
 Eigen::MatrixXd CR_SRJacobian_Solver::jacobian(Manipulator *manipulator, Name tool_name)
 {
@@ -643,7 +639,7 @@ bool CR_SRJacobian_Solver::inverseSolverUsingSRJacobian(Manipulator *manipulator
       forwardKinematics(&_manipulator);
     }
   }
-  RM_LOG::ERROR("[sr] fail to solve inverse kinematics (please change the solver)");
+  RM_LOG::ERROR("[sr]fail to solve inverse kinematics (please change the solver)");
   *goal_joint_value = {};
   return false;
 }
@@ -659,8 +655,6 @@ bool CR_SRJacobian_Solver::inverseSolverUsingSRJacobian(Manipulator *manipulator
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void CR_Position_Only_Jacobian_Solver::setOption(const void *arg){}
-
-void CR_Position_Only_Jacobian_Solver::updatePassiveJointValue(Manipulator *manipulator){}
 
 Eigen::MatrixXd CR_Position_Only_Jacobian_Solver::jacobian(Manipulator *manipulator, Name tool_name)
 {
@@ -1017,7 +1011,7 @@ bool CR_Position_Only_Jacobian_Solver::inverseSolverUsingPositionOnlySRJacobian(
       forwardKinematics(&_manipulator);
     }
   }
-  RM_LOG::ERROR("[position_only] fail to solve inverse kinematics (please change the solver)");
+  RM_LOG::ERROR("[position_only]fail to solve inverse kinematics (please change the solver)");
   *goal_joint_value = {};
   return false;
 }
@@ -1033,8 +1027,6 @@ bool CR_Position_Only_Jacobian_Solver::inverseSolverUsingPositionOnlySRJacobian(
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void CR_Custom_Solver::setOption(const void *arg){}
-
-void CR_Custom_Solver::updatePassiveJointValue(Manipulator *manipulator){}
 
 Eigen::MatrixXd CR_Custom_Solver::jacobian(Manipulator *manipulator, Name tool_name)
 {
@@ -1404,14 +1396,13 @@ bool CR_Custom_Solver::chainCustomInverseKinematics(Manipulator *manipulator, Na
       forwardKinematics(&_manipulator);
     }
   }
-  RM_LOG::ERROR("[OpenManipulator Chain Custom] fail to solve inverse kinematics");
+  RM_LOG::ERROR("[OpenManipulator Chain Custom]fail to solve inverse kinematics");
   *goal_joint_value = {};
   return false;
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 
 

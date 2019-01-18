@@ -39,14 +39,15 @@ void OPEN_MANIPULATOR::initManipulator(bool using_platform, STRING usb_port, STR
            M_PI,   // max joint limit (3.14 rad)
            -M_PI); // min joint limit (-3.14 rad)
 
+
   addJoint("joint2", // my name
            "joint1", // parent name
            "joint3", // child name
-           RM_MATH::makeVector3(0.0, 0.0, 0.058), // relative position
+           RM_MATH::makeVector3(0.0, 0.0, 0.0595), // relative position
            RM_MATH::convertRPYToRotation(0.0, 0.0, 0.0), // relative orientation
            Y_AXIS, // axis of rotation
            12,     // actuator id
-           M_PI_2, // max joint limit (1.67 rad)
+           M_PI_2,   // max joint limit (1.67 rad)
            -2.05); // min joint limit (-2.05 rad)
 
   addJoint("joint3", // my name
@@ -54,14 +55,14 @@ void OPEN_MANIPULATOR::initManipulator(bool using_platform, STRING usb_port, STR
            "joint4", // child name
            RM_MATH::makeVector3(0.024, 0.0, 0.128), // relative position
            RM_MATH::convertRPYToRotation(0.0, 0.0, 0.0), // relative orientation
-           Y_AXIS,    // axis of rotation
-           13,        // actuator id
+           Y_AXIS, // axis of rotation
+           13,     // actuator id
            1.53,      // max joint limit (1.53 rad)
-           -M_PI_2);  // min joint limit (-1.67 rad)
+           -M_PI_2); // min joint limit (-1.67 rad)
 
-  addJoint("joint4",  // my name
-           "joint3",  // parent name
-           "gripper", // child name
+  addJoint("joint4", // my name
+           "joint3", // parent name
+           "gripper",   // child name
            RM_MATH::makeVector3(0.124, 0.0, 0.0), // relative position
            RM_MATH::convertRPYToRotation(0.0, 0.0, 0.0), // relative orientation
            Y_AXIS, // axis of rotation
@@ -69,14 +70,14 @@ void OPEN_MANIPULATOR::initManipulator(bool using_platform, STRING usb_port, STR
            2.0,    // max joint limit (2.0 rad)
            -1.8);  // min joint limit (-1.8 rad)
 
-  addTool("gripper",  // my name
-          "joint4",   // parent name
+  addTool("gripper",   // my name
+          "joint4", // parent name
           RM_MATH::makeVector3(0.130, 0.0, 0.0), // relative position
           RM_MATH::convertRPYToRotation(0.0, 0.0, 0.0), // relative orientation
-          15,       // actuator id
-          0.010,    // max gripper limit (0.01 m)
-          -0.010,   // min gripper limit (-0.01 m)
-          -0.015);  // Change unit from `meter` to `radian`
+          15,     // actuator id
+          0.010,  // max gripper limit (0.01 m)
+          -0.010, // min gripper limit (-0.01 m)
+          -0.015); // Change unit from `meter` to `radian`
 
   ////////// kinematics init.
   kinematics_ = new KINEMATICS::CR_Custom_Solver();
@@ -110,6 +111,7 @@ void OPEN_MANIPULATOR::initManipulator(bool using_platform, STRING usb_port, STR
     uint8_t gripperDxlId = 15;
     addToolActuator(TOOL_DYNAMIXEL, tool_, gripperDxlId, p_dxl_comm_arg);
 
+
     // set gripper actuator control mode
     STRING gripper_dxl_mode_arg = "current_based_position_mode";
     void *p_gripper_dxl_mode_arg = &gripper_dxl_mode_arg;
@@ -131,11 +133,17 @@ void OPEN_MANIPULATOR::initManipulator(bool using_platform, STRING usb_port, STR
     receiveAllJointActuatorValue();
     receiveAllToolActuatorValue();
   }
-  ////////// custom trajectory init.
+  ////////// drawing path
   addCustomTrajectory(DRAWING_LINE, &line_);
   addCustomTrajectory(DRAWING_CIRCLE, &circle_);
   addCustomTrajectory(DRAWING_RHOMBUS, &rhombus_);
   addCustomTrajectory(DRAWING_HEART, &heart_);
+}
+
+void OPEN_MANIPULATOR::calculationProcess(double tick_time, JointWayPoint* goal_joint_value, JointWayPoint* goal_tool_value)
+{
+  *goal_joint_value = getJointGoalValueFromTrajectoryTickTime(tick_time);
+  *goal_tool_value  = getToolGoalValue();
 }
 
 void OPEN_MANIPULATOR::communicationProcessToActuator(JointWayPoint goal_joint_value, JointWayPoint goal_tool_value)
@@ -148,8 +156,3 @@ void OPEN_MANIPULATOR::communicationProcessToActuator(JointWayPoint goal_joint_v
   forwardKinematics();
 }
 
-void OPEN_MANIPULATOR::calculationProcess(double tick_time, JointWayPoint* goal_joint_value, JointWayPoint* goal_tool_value)
-{
-  *goal_joint_value = getJointGoalValueFromTrajectoryTickTime(tick_time);
-  *goal_tool_value  = getToolGoalValue();
-}
