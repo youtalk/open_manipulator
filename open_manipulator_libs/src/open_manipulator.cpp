@@ -18,8 +18,8 @@
 
 #include "../include/open_manipulator_libs/open_manipulator.h"
 
-OpenManipulator::OpenManipulator()
-{}
+OpenManipulator::OpenManipulator(){}
+
 OpenManipulator::~OpenManipulator()
 {
   delete kinematics_;
@@ -209,4 +209,97 @@ void OpenManipulator::processOpenManipulator(double present_time)
   if(goal_joint_value.size() != 0) sendAllJointActuatorValue(goal_joint_value);
   if(goal_tool_value.size() != 0) sendAllToolActuatorValue(goal_tool_value);
   solveForwardKinematics();
+
+  /////////////////////////////////////////////////////////////////////
+  Pose tool_pose;
+  JointWaypoint joint_way_point;
+  std::vector<double> joint_position;
+  std::vector<double> joint_velocity;
+  std::vector<double> joint_acceleration;
+
+  tool_pose = getPose("gripper");
+  joint_way_point = getAllJointValue();
+  joint_position.clear();
+  joint_velocity.clear();
+  joint_acceleration.clear();
+  for(int index = 0; index < joint_way_point.size(); index++)
+  {
+    joint_position.push_back(joint_way_point.at(index).position);
+    joint_velocity.push_back(joint_way_point.at(index).velocity);
+    joint_acceleration.push_back(joint_way_point.at(index).acceleration);
+  }
+
+//  log::println("[manipulator]");
+//  log::print_vector(tool_pose.kinematic.position);
+//  log::print_vector(tool_pose.dynamic.linear.velocity);
+//  log::print_vector(tool_pose.dynamic.linear.acceleration);
+//  log::print_vector(joint_position);
+//  log::print_vector(joint_velocity);
+//  log::print_vector(joint_acceleration);
+  log::print(", [pre], pose, ",tool_pose.kinematic.position[0]);
+  log::print(", ",tool_pose.kinematic.position[1]);
+  log::print(", ",tool_pose.kinematic.position[2]);
+  log::print(", ",tool_pose.dynamic.linear.velocity[0]);
+  log::print(", ",tool_pose.dynamic.linear.velocity[1]);
+  log::print(", ",tool_pose.dynamic.linear.velocity[2]);
+  log::print(", ",tool_pose.dynamic.linear.acceleration[0]);
+  log::print(", ",tool_pose.dynamic.linear.acceleration[1]);
+  log::print(", ",tool_pose.dynamic.linear.acceleration[2]);
+  log::print(", joint, ",joint_position.at(0));
+  log::print(", ",joint_position.at(1));
+  log::print(", ",joint_position.at(2));
+  log::print(", ",joint_position.at(3));
+  log::print(", ",joint_velocity.at(0));
+  log::print(", ",joint_velocity.at(1));
+  log::print(", ",joint_velocity.at(2));
+  log::print(", ",joint_velocity.at(3));
+  log::print(", ",joint_acceleration.at(0));
+  log::print(", ",joint_acceleration.at(1));
+  log::print(", ",joint_acceleration.at(2));
+  log::println(", ",joint_acceleration.at(3));
+
+
+  log::print(" ", present_time);
+
+  tool_pose = getTrajectory()->getManipulator()->getComponentPoseFromWorld("gripper");
+  joint_way_point = getTrajectory()->getManipulator()->getAllJointValue();
+  joint_position.clear();
+  joint_velocity.clear();
+  joint_acceleration.clear();
+  for(int index = 0; index < joint_way_point.size(); index++)
+  {
+    joint_position.push_back(joint_way_point.at(index).position);
+    joint_velocity.push_back(joint_way_point.at(index).velocity);
+    joint_acceleration.push_back(joint_way_point.at(index).acceleration);
+  }
+
+//  log::println("[next goal(traj) manipulator]");
+//  log::print_vector(tool_pose.kinematic.position);
+//  log::print_vector(tool_pose.dynamic.linear.velocity);
+//  log::print_vector(tool_pose.dynamic.linear.acceleration);
+//  log::print_vector(joint_position);
+//  log::print_vector(joint_velocity);
+//  log::print_vector(joint_acceleration);
+  log::print(", [goal], pose, ",tool_pose.kinematic.position[0]);
+  log::print(", ",tool_pose.kinematic.position[1]);
+  log::print(", ",tool_pose.kinematic.position[2]);
+  log::print(", ",tool_pose.dynamic.linear.velocity[0]);
+  log::print(", ",tool_pose.dynamic.linear.velocity[1]);
+  log::print(", ",tool_pose.dynamic.linear.velocity[2]);
+  log::print(", ",tool_pose.dynamic.linear.acceleration[0]);
+  log::print(", ",tool_pose.dynamic.linear.acceleration[1]);
+  log::print(", ",tool_pose.dynamic.linear.acceleration[2]);
+  log::print(", joint, ",joint_position.at(0));
+  log::print(", ",joint_position.at(1));
+  log::print(", ",joint_position.at(2));
+  log::print(", ",joint_position.at(3));
+  log::print(", ",joint_velocity.at(0));
+  log::print(", ",joint_velocity.at(1));
+  log::print(", ",joint_velocity.at(2));
+  log::print(", ",joint_velocity.at(3));
+  log::print(", ",joint_acceleration.at(0));
+  log::print(", ",joint_acceleration.at(1));
+  log::print(", ",joint_acceleration.at(2));
+  log::print(", ",joint_acceleration.at(3));
+  /////////////////////////////////////////////////////////////////////
 }

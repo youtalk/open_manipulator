@@ -22,11 +22,57 @@ using namespace dynamixel;
 using namespace robotis_manipulator;
 
 /*****************************************************************************
+** Additional Function
+*****************************************************************************/
+LowPassFilter::LowPassFilter()
+{
+  previous_filtering_data_ = 0.0;
+}
+
+void LowPassFilter::setTau(double tau)
+{
+  tau_ = tau;
+}
+
+double LowPassFilter::getFilteringData(double raw_data, double sampling_time)
+{
+  return ((tau_*previous_filtering_data_) + (sampling_time * raw_data)) / (tau_ + sampling_time);
+}
+
+void AccelerationCalculator::initialize(double stert_velocity, double tau)
+{
+  previous_velocity_ = stert_velocity;
+  filter_.setTau(tau);
+}
+
+double AccelerationCalculator::getPresentAcceleration(double sampling_time, double present_velocity)
+{
+  double raw_acceleration = (present_velocity - previous_velocity_) / sampling_time;
+  previous_velocity_ = present_velocity;
+  return filter_.getFilteringData(raw_acceleration, sampling_time);
+}
+
+/*****************************************************************************
 ** Joint Dynamixel Control Functions
 *****************************************************************************/
+JointDynamixel::JointDynamixel()
+{
+  previous_time_ = 0.0;
+}
+
 void JointDynamixel::init(std::vector<uint8_t> actuator_id, const void *arg)
 {
   STRING *get_arg_ = (STRING *)arg;
+
+  for(int index = 0; index < actuator_id.size(); index++)
+  {
+    AccelerationCalculator temp;
+    LowPassFilter temp2;
+    temp.initialize(0.0);
+    temp2.setTau();
+    acceleration_calculator_.push_back(temp);
+    velocity_filter_.push_back(temp2);
+  }
 
   bool result = JointDynamixel::initialize(actuator_id ,get_arg_[0], get_arg_[1]);
 
@@ -162,7 +208,7 @@ bool JointDynamixel::initialize(std::vector<uint8_t> actuator_id, STRING dxl_dev
       if(result == false)
       {
         log::error(log);
-        log::error("Please check your Dynamixel firmware version (v38~)");
+        log::error("Please check your Dynamixel firmware version (v42~)");
       }
 
       result = dynamixel_workbench_->writeRegister(id, return_delay_time_char, 0, &log);
@@ -240,6 +286,14 @@ bool JointDynamixel::setSDKHandler(uint8_t actuator_id)
   {
     log::error(log);
   }
+  result = dynamixel_workbench_->addSyncReadHandler(ADDR_REALTIME_TICK_2,
+                                                    (LENGTH_REALTIME_TICK_2),
+                                                    &log);
+  if (result == false)
+  {
+    log::error(log);
+  }
+
 
   return true;
 }
@@ -297,9 +351,12 @@ std::vector<robotis_manipulator::ActuatorValue> JointDynamixel::receiveAllDynami
   for (uint8_t index = 0; index < actuator_id.size(); index++)
     id_array[index] = actuator_id.at(index);
 
+  int32_t get_realtime_tick[actuator_id.size()];
+
   int32_t get_current[actuator_id.size()];
   int32_t get_velocity[actuator_id.size()];
   int32_t get_position[actuator_id.size()];
+
 
   result = dynamixel_workbench_->syncRead(SYNC_READ_HANDLER_FOR_PRESENT_POSITION_VELOCITY_CURRENT,
                                           id_array,
@@ -346,15 +403,55 @@ std::vector<robotis_manipulator::ActuatorValue> JointDynamixel::receiveAllDynami
     log::error(log);
   }
 
+  //////////////////GET TIME for CALCULATION OF ACCELERATION///////////////////////////////
+  result = dynamixel_workbench_->syncRead(SYNC_READ_HANDLER_FOR_REALTIME_TICK,
+                                          id_array,
+                                          actuator_id.size(),
+                                          &log);
+  if (result == false)
+  {
+    log::error(log);
+  }
+
+  result = dynamixel_workbench_->getSyncReadData(SYNC_READ_HANDLER_FOR_REALTIME_TICK,
+                                                id_array,
+                                                actuator_id.size(),
+                                                ADDR_REALTIME_TICK_2,
+                                                LENGTH_REALTIME_TICK_2,
+                                                get_realtime_tick,
+                                                &log);
+  if (result == false)
+  {
+    log::error(log);
+  }
+
+  double sampling_time;
+  double present_time = (double) get_realtime_tick[0];
+  present_time = present_time / 1000;
+  if(previous_time_ > present_time)
+    sampling_time = present_time - previous_time_ + 32.767;
+  else
+    sampling_time = present_time - previous_time_;
+
+  previous_time_ = previous_time_ + sampling_time;
+
+
   for (uint8_t index = 0; index < actuator_id.size(); index++)
   {
     robotis_manipulator::ActuatorValue actuator;
-    actuator.effort = dynamixel_workbench_->convertValue2Current(get_current[index]);
-    actuator.velocity = dynamixel_workbench_->convertValue2Velocity(actuator_id.at(index), get_velocity[index]);
+
     actuator.position = dynamixel_workbench_->convertValue2Radian(actuator_id.at(index), get_position[index]);
+
+    actuator.velocity = dynamixel_workbench_->convertValue2Velocity(actuator_id.at(index), get_velocity[index]);
+    actuator.velocity = velocity_filter_.at(index).getFilteringData(actuator.velocity,sampling_time);
+
+    actuator.acceleration = acceleration_calculator_.at(index).getPresentAcceleration(sampling_time, actuator.velocity);
+
+    actuator.effort = dynamixel_workbench_->convertValue2Current(get_current[index]);
 
     all_actuator.push_back(actuator);
   }
+
 
   return all_actuator;
 }
@@ -366,11 +463,22 @@ std::vector<robotis_manipulator::ActuatorValue> JointDynamixel::receiveAllDynami
 JointDynamixelProfileControl::JointDynamixelProfileControl(float control_loop_time)
 {
   control_loop_time_ = control_loop_time;
+  previous_time_ = 0.0;
 }
 
 void JointDynamixelProfileControl::init(std::vector<uint8_t> actuator_id, const void *arg)
 {
   STRING *get_arg_ = (STRING *)arg;
+
+  for(int index = 0; index < actuator_id.size(); index++)
+  {
+    AccelerationCalculator temp;
+    LowPassFilter temp2;
+    temp.initialize(0.0);
+    temp2.setTau();
+    acceleration_calculator_.push_back(temp);
+    velocity_filter_.push_back(temp2);
+  }
 
   bool result = JointDynamixelProfileControl::initialize(actuator_id ,get_arg_[0], get_arg_[1]);
 
@@ -501,7 +609,7 @@ bool JointDynamixelProfileControl::initialize(std::vector<uint8_t> actuator_id, 
       if(result == false)
       {
         log::error(log);
-        log::error("Please check your Dynamixel firmware version (v38~)");
+        log::error("Please check your Dynamixel firmware version (v42~)");
       }
 
       result = dynamixel_workbench_->writeRegister(id, return_delay_time_char, 0, &log);
@@ -579,6 +687,13 @@ bool JointDynamixelProfileControl::setSDKHandler(uint8_t actuator_id)
   {
     log::error(log);
   }
+  result = dynamixel_workbench_->addSyncReadHandler(ADDR_REALTIME_TICK_2,
+                                                    (LENGTH_REALTIME_TICK_2),
+                                                    &log);
+  if (result == false)
+  {
+    log::error(log);
+  }
 
   return true;
 }
@@ -647,6 +762,8 @@ std::vector<robotis_manipulator::ActuatorValue> JointDynamixelProfileControl::re
   for (uint8_t index = 0; index < actuator_id.size(); index++)
     id_array[index] = actuator_id.at(index);
 
+  int32_t get_realtime_tick[actuator_id.size()];
+
   int32_t get_current[actuator_id.size()];
   int32_t get_velocity[actuator_id.size()];
   int32_t get_position[actuator_id.size()];
@@ -696,12 +813,49 @@ std::vector<robotis_manipulator::ActuatorValue> JointDynamixelProfileControl::re
     log::error(log);
   }
 
+  //////////////////GET TIME for CALCULATION OF ACCELERATION///////////////////////////////
+  result = dynamixel_workbench_->syncRead(SYNC_READ_HANDLER_FOR_REALTIME_TICK,
+                                          id_array,
+                                          actuator_id.size(),
+                                          &log);
+  if (result == false)
+  {
+    log::error(log);
+  }
+
+  result = dynamixel_workbench_->getSyncReadData(SYNC_READ_HANDLER_FOR_REALTIME_TICK,
+                                                id_array,
+                                                actuator_id.size(),
+                                                ADDR_REALTIME_TICK_2,
+                                                LENGTH_REALTIME_TICK_2,
+                                                get_realtime_tick,
+                                                &log);
+  if (result == false)
+  {
+    log::error(log);
+  }
+
+  double sampling_time;
+  double present_time = (double) get_realtime_tick[0];
+  present_time = present_time / 1000;
+  if(previous_time_ > present_time)
+    sampling_time = present_time - previous_time_ + 32.767;
+  else
+    sampling_time = present_time - previous_time_;
+  previous_time_ = previous_time_ + sampling_time;
+
   for (uint8_t index = 0; index < actuator_id.size(); index++)
   {
     robotis_manipulator::ActuatorValue actuator;
-    actuator.effort = dynamixel_workbench_->convertValue2Current(get_current[index]);
-    actuator.velocity = dynamixel_workbench_->convertValue2Velocity(actuator_id.at(index), get_velocity[index]);
+
     actuator.position = dynamixel_workbench_->convertValue2Radian(actuator_id.at(index), get_position[index]);
+
+    actuator.velocity = dynamixel_workbench_->convertValue2Velocity(actuator_id.at(index), get_velocity[index]);
+    actuator.velocity = velocity_filter_.at(index).getFilteringData(actuator.velocity,sampling_time);
+
+    actuator.acceleration = acceleration_calculator_.at(index).getPresentAcceleration(sampling_time, actuator.velocity);
+
+    actuator.effort = dynamixel_workbench_->convertValue2Current(get_current[index]);
 
     all_actuator.push_back(actuator);
   }

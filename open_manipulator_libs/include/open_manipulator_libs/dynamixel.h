@@ -32,6 +32,7 @@ namespace dynamixel
 
 #define SYNC_WRITE_HANDLER 0
 #define SYNC_READ_HANDLER_FOR_PRESENT_POSITION_VELOCITY_CURRENT 0
+#define SYNC_READ_HANDLER_FOR_REALTIME_TICK 1
 
 //#define CONTROL_LOOP_TIME 10;    //ms
 
@@ -44,6 +45,7 @@ namespace dynamixel
 #define ADDR_PROFILE_ACCELERATION_2 108
 #define ADDR_PROFILE_VELOCITY_2 112
 #define ADDR_GOAL_POSITION_2 116
+#define ADDR_REALTIME_TICK_2 120
 
 
 #define LENGTH_PRESENT_CURRENT_2 2
@@ -54,7 +56,7 @@ namespace dynamixel
 #define LENGTH_PROFILE_ACCELERATION_2 4
 #define LENGTH_PROFILE_VELOCITY_2 4
 #define LENGTH_GOAL_POSITION_2 4
-
+#define LENGTH_REALTIME_TICK_2 2
 
 // Protocol 1.0
 #define ADDR_PRESENT_CURRENT_1 = 40;
@@ -71,14 +73,47 @@ typedef struct
   uint8_t num;
 } Joint;
 
+class LowPassFilter
+{
+
+private:
+  double tau_;
+  double previous_filtering_data_;
+
+public:
+  LowPassFilter();
+  ~LowPassFilter(){}
+
+  void setTau(double tau = 0.0005);
+  double getFilteringData(double raw_data, double sampling_time);
+};
+
+class AccelerationCalculator
+{
+private:
+  double previous_velocity_;
+  LowPassFilter filter_;
+
+public:
+  AccelerationCalculator(){}
+  ~AccelerationCalculator(){}
+
+  void initialize(double stert_velocity, double tau = 0.005);
+  double getPresentAcceleration(double sampling_time, double present_velocity);
+};
+
+
 class JointDynamixel : public robotis_manipulator::JointActuator
 {
 private:
   DynamixelWorkbench *dynamixel_workbench_;
   Joint dynamixel_;
+  std::vector<AccelerationCalculator> acceleration_calculator_;
+  std::vector<LowPassFilter> velocity_filter_;
+  double previous_time_;
 
 public:
-  JointDynamixel(){}
+  JointDynamixel();
   virtual ~JointDynamixel(){}
 
 
@@ -114,11 +149,13 @@ private:
   Joint dynamixel_;
   float control_loop_time_; // unit: ms
   std::map<uint8_t, robotis_manipulator::ActuatorValue> previous_goal_value_;
+  std::vector<AccelerationCalculator> acceleration_calculator_;
+  std::vector<LowPassFilter> velocity_filter_;
+  double previous_time_;
 
 public:
   JointDynamixelProfileControl(float control_loop_time = 0.010);
   virtual ~JointDynamixelProfileControl(){}
-
 
   /*****************************************************************************
   ** Joint Dynamixel Profile Control Functions
