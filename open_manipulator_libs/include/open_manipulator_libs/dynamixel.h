@@ -27,6 +27,8 @@
   #include <dynamixel_workbench_toolbox/dynamixel_workbench.h>
 #endif
 
+using namespace robotis_manipulator;
+
 namespace dynamixel
 {
 

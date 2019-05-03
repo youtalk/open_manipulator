@@ -19,7 +19,6 @@
 #include "../include/open_manipulator_libs/dynamixel.h"
 
 using namespace dynamixel;
-using namespace robotis_manipulator;
 
 /*****************************************************************************
 ** Additional Function

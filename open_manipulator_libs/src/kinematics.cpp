@@ -18,9 +18,7 @@
 
 #include "../include/open_manipulator_libs/kinematics.h"
 
-using namespace robotis_manipulator;
 using namespace kinematics;
-
 
 /*****************************************************************************
 ** Kinematics Solver Using Chain Rule and Jacobian
@@ -77,7 +75,7 @@ void SolverUsingCRAndJacobian::solveForwardKinematics(Manipulator *manipulator)
   forwardSolverUsingChainRule(manipulator, manipulator->getWorldChildName());
 }
 
-bool SolverUsingCRAndJacobian::solveInverseKinematics(Manipulator *manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
+bool SolverUsingCRAndJacobian::solveInverseKinematics(Manipulator manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
 {
   return inverseSolverUsingJacobian(manipulator, tool_name, target_pose, goal_joint_value);
 }
@@ -130,7 +128,7 @@ Eigen::MatrixXd SolverUsingCRAndJacobian::jacobianDot(Manipulator *manipulator, 
   return jacobian_dot;
 }
 
-std::vector<JointValue> SolverUsingCRAndJacobian::inverseDynamicSolver(Manipulator manipulator, Name tool_name, Pose target_pose)
+std::vector<JointValue> SolverUsingCRAndJacobian::inverseVelAccSolver(Manipulator manipulator, Name tool_name, Pose target_pose)
 {
   Eigen::MatrixXd jacobian = Eigen::MatrixXd::Identity(6, manipulator.getDOF());
   jacobian = this->jacobian(&manipulator, tool_name);
@@ -187,37 +185,40 @@ void SolverUsingCRAndJacobian::forwardSolverUsingChainRule(Manipulator *manipula
 
   Pose parent_pose_value;
   Pose my_pose_value;
+  Eigen::Vector3d joint_axis = Eigen::Vector3d::Zero(3);
 
   //Get Parent Pose
   if (parent_name == manipulator->getWorldName())
   {
     parent_pose_value = manipulator->getWorldPose();
+    joint_axis = manipulator->getWorldOrientation() * manipulator->getAxis(my_name);
   }
   else
   {
     parent_pose_value = manipulator->getComponentPoseFromWorld(parent_name);
+    joint_axis = manipulator->getComponentOrientationFromWorld(parent_name) * manipulator->getAxis(my_name);
   }
 
   //position
   my_pose_value.kinematic.position = parent_pose_value.kinematic.position
                                    + (parent_pose_value.kinematic.orientation * manipulator->getComponentRelativePositionFromParent(my_name));
   //orientation
-  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * math::rodriguesRotationMatrix(manipulator->getAxis(my_name), manipulator->getJointPosition(my_name));
+  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * math::rodriguesRotationMatrix(joint_axis, manipulator->getJointPosition(my_name));
   //linear velocity
   my_pose_value.dynamic.linear.velocity = parent_pose_value.dynamic.linear.velocity
-                                        + (manipulator->getJointVelocity(my_name) * (math::skewSymmetricMatrix(my_pose_value.kinematic.position) * manipulator->getAxis(my_name)));
+                                        + (manipulator->getJointVelocity(my_name) * (math::skewSymmetricMatrix(my_pose_value.kinematic.position) * joint_axis));
   //angular velocity
   my_pose_value.dynamic.angular.velocity = parent_pose_value.dynamic.angular.velocity
-                                         + (manipulator->getJointVelocity(my_name) * manipulator->getAxis(my_name));
+                                         + (manipulator->getJointVelocity(my_name) * joint_axis);
   //linear acceleration
   my_pose_value.dynamic.linear.acceleration = parent_pose_value.dynamic.linear.acceleration
-                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.angular.velocity) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) * manipulator->getAxis(my_name))
-                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.linear.velocity) * manipulator->getAxis(my_name))
-                                            + (manipulator->getJointAcceleration(my_name) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) *  manipulator->getAxis(my_name));
+                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.angular.velocity) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) * joint_axis)
+                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.linear.velocity) * joint_axis)
+                                            + (manipulator->getJointAcceleration(my_name) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) *  joint_axis);
   //angular acceleration
   my_pose_value.dynamic.angular.acceleration = parent_pose_value.dynamic.angular.acceleration
-                                             + (manipulator->getJointVelocity(my_name) * manipulator->getAxis(my_name))
-                                             + (manipulator->getJointAcceleration(my_name) * manipulator->getAxis(my_name));
+                                             + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.angular.velocity) * joint_axis)
+                                             + (manipulator->getJointAcceleration(my_name) * joint_axis);
 
 
   manipulator->setComponentPoseFromWorld(my_name, my_pose_value);
@@ -229,12 +230,12 @@ void SolverUsingCRAndJacobian::forwardSolverUsingChainRule(Manipulator *manipula
   }
 }
 
-bool SolverUsingCRAndJacobian::inverseSolverUsingJacobian(Manipulator *manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
+bool SolverUsingCRAndJacobian::inverseSolverUsingJacobian(Manipulator manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
 {
   const double lambda = 0.7;
   const int8_t iteration = 10;
 
-  Manipulator _manipulator = *manipulator;
+  Manipulator _manipulator = manipulator;
 
   Eigen::MatrixXd jacobian = Eigen::MatrixXd::Identity(6, _manipulator.getDOF());
 
@@ -255,7 +256,7 @@ bool SolverUsingCRAndJacobian::inverseSolverUsingJacobian(Manipulator *manipulat
     //pose sovler success
     if (pose_changed.norm() < 1E-6)
     {
-      *goal_joint_value = inverseDynamicSolver(_manipulator, tool_name, target_pose);
+      *goal_joint_value = inverseVelAccSolver(_manipulator, tool_name, target_pose);
       return true;
     }
 
@@ -329,7 +330,7 @@ void SolverUsingCRAndSRJacobian::solveForwardKinematics(Manipulator *manipulator
   forwardSolverUsingChainRule(manipulator, manipulator->getWorldChildName());
 }
 
-bool SolverUsingCRAndSRJacobian::solveInverseKinematics(Manipulator *manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
+bool SolverUsingCRAndSRJacobian::solveInverseKinematics(Manipulator manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
 {
   return inverseSolverUsingSRJacobian(manipulator, tool_name, target_pose, goal_joint_value);
 }
@@ -382,7 +383,7 @@ Eigen::MatrixXd SolverUsingCRAndSRJacobian::jacobianDot(Manipulator *manipulator
   return jacobian_dot;
 }
 
-std::vector<JointValue> SolverUsingCRAndSRJacobian::inverseDynamicSolver(Manipulator manipulator, Name tool_name, Pose target_pose)
+std::vector<JointValue> SolverUsingCRAndSRJacobian::inverseVelAccSolver(Manipulator manipulator, Name tool_name, Pose target_pose)
 {
   Eigen::MatrixXd jacobian = Eigen::MatrixXd::Identity(6, manipulator.getDOF());
   jacobian = this->jacobian(&manipulator, tool_name);
@@ -439,37 +440,40 @@ void SolverUsingCRAndSRJacobian::forwardSolverUsingChainRule(Manipulator *manipu
 
   Pose parent_pose_value;
   Pose my_pose_value;
+  Eigen::Vector3d joint_axis = Eigen::Vector3d::Zero(3);
 
   //Get Parent Pose
   if (parent_name == manipulator->getWorldName())
   {
     parent_pose_value = manipulator->getWorldPose();
+    joint_axis = manipulator->getWorldOrientation() * manipulator->getAxis(my_name);
   }
   else
   {
     parent_pose_value = manipulator->getComponentPoseFromWorld(parent_name);
+    joint_axis = manipulator->getComponentOrientationFromWorld(parent_name) * manipulator->getAxis(my_name);
   }
 
   //position
   my_pose_value.kinematic.position = parent_pose_value.kinematic.position
                                    + (parent_pose_value.kinematic.orientation * manipulator->getComponentRelativePositionFromParent(my_name));
   //orientation
-  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * math::rodriguesRotationMatrix(manipulator->getAxis(my_name), manipulator->getJointPosition(my_name));
+  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * math::rodriguesRotationMatrix(joint_axis, manipulator->getJointPosition(my_name));
   //linear velocity
   my_pose_value.dynamic.linear.velocity = parent_pose_value.dynamic.linear.velocity
-                                        + (manipulator->getJointVelocity(my_name) * (math::skewSymmetricMatrix(my_pose_value.kinematic.position) * manipulator->getAxis(my_name)));
+                                        + (manipulator->getJointVelocity(my_name) * (math::skewSymmetricMatrix(my_pose_value.kinematic.position) * joint_axis));
   //angular velocity
   my_pose_value.dynamic.angular.velocity = parent_pose_value.dynamic.angular.velocity
-                                         + (manipulator->getJointVelocity(my_name) * manipulator->getAxis(my_name));
+                                         + (manipulator->getJointVelocity(my_name) * joint_axis);
   //linear acceleration
   my_pose_value.dynamic.linear.acceleration = parent_pose_value.dynamic.linear.acceleration
-                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.angular.velocity) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) * manipulator->getAxis(my_name))
-                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.linear.velocity) * manipulator->getAxis(my_name))
-                                            + (manipulator->getJointAcceleration(my_name) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) *  manipulator->getAxis(my_name));
+                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.angular.velocity) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) * joint_axis)
+                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.linear.velocity) * joint_axis)
+                                            + (manipulator->getJointAcceleration(my_name) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) *  joint_axis);
   //angular acceleration
   my_pose_value.dynamic.angular.acceleration = parent_pose_value.dynamic.angular.acceleration
-                                             + (manipulator->getJointVelocity(my_name) * manipulator->getAxis(my_name))
-                                             + (manipulator->getJointAcceleration(my_name) * manipulator->getAxis(my_name));
+                                             + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.angular.velocity) * joint_axis)
+                                             + (manipulator->getJointAcceleration(my_name) * joint_axis);
 
   manipulator->setComponentPoseFromWorld(my_name, my_pose_value);
 
@@ -480,10 +484,10 @@ void SolverUsingCRAndSRJacobian::forwardSolverUsingChainRule(Manipulator *manipu
   }
 }
 
-bool SolverUsingCRAndSRJacobian::inverseSolverUsingSRJacobian(Manipulator *manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
+bool SolverUsingCRAndSRJacobian::inverseSolverUsingSRJacobian(Manipulator manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
 {
   //manipulator
-  Manipulator _manipulator = *manipulator;
+  Manipulator _manipulator = manipulator;
 
   //solver parameter
   double lambda = 0.0;
@@ -699,7 +703,7 @@ void SolverUsingCRAndSRPositionOnlyJacobian::solveForwardKinematics(Manipulator 
   forwardSolverUsingChainRule(manipulator, manipulator->getWorldChildName());
 }
 
-bool SolverUsingCRAndSRPositionOnlyJacobian::solveInverseKinematics(Manipulator *manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
+bool SolverUsingCRAndSRPositionOnlyJacobian::solveInverseKinematics(Manipulator manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
 {
   return inverseSolverUsingPositionOnlySRJacobian(manipulator, tool_name, target_pose, goal_joint_value);
 }
@@ -752,7 +756,7 @@ Eigen::MatrixXd SolverUsingCRAndSRPositionOnlyJacobian::jacobianDot(Manipulator 
   return jacobian_dot;
 }
 
-std::vector<JointValue> SolverUsingCRAndSRPositionOnlyJacobian::inverseDynamicSolver(Manipulator manipulator, Name tool_name, Pose target_pose)
+std::vector<JointValue> SolverUsingCRAndSRPositionOnlyJacobian::inverseVelAccSolver(Manipulator manipulator, Name tool_name, Pose target_pose)
 {
   Eigen::MatrixXd jacobian = Eigen::MatrixXd::Identity(6, manipulator.getDOF());
   jacobian = this->jacobian(&manipulator, tool_name);
@@ -810,37 +814,40 @@ void SolverUsingCRAndSRPositionOnlyJacobian::forwardSolverUsingChainRule(Manipul
 
   Pose parent_pose_value;
   Pose my_pose_value;
+  Eigen::Vector3d joint_axis = Eigen::Vector3d::Zero(3);
 
   //Get Parent Pose
   if (parent_name == manipulator->getWorldName())
   {
     parent_pose_value = manipulator->getWorldPose();
+    joint_axis = manipulator->getWorldOrientation() * manipulator->getAxis(my_name);
   }
   else
   {
     parent_pose_value = manipulator->getComponentPoseFromWorld(parent_name);
+    joint_axis = manipulator->getComponentOrientationFromWorld(parent_name) * manipulator->getAxis(my_name);
   }
 
   //position
   my_pose_value.kinematic.position = parent_pose_value.kinematic.position
                                    + (parent_pose_value.kinematic.orientation * manipulator->getComponentRelativePositionFromParent(my_name));
   //orientation
-  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * math::rodriguesRotationMatrix(manipulator->getAxis(my_name), manipulator->getJointPosition(my_name));
+  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * math::rodriguesRotationMatrix(joint_axis, manipulator->getJointPosition(my_name));
   //linear velocity
   my_pose_value.dynamic.linear.velocity = parent_pose_value.dynamic.linear.velocity
-                                        + (manipulator->getJointVelocity(my_name) * (math::skewSymmetricMatrix(my_pose_value.kinematic.position) * manipulator->getAxis(my_name)));
+                                        + (manipulator->getJointVelocity(my_name) * (math::skewSymmetricMatrix(my_pose_value.kinematic.position) * joint_axis));
   //angular velocity
   my_pose_value.dynamic.angular.velocity = parent_pose_value.dynamic.angular.velocity
-                                         + (manipulator->getJointVelocity(my_name) * manipulator->getAxis(my_name));
+                                         + (manipulator->getJointVelocity(my_name) * joint_axis);
   //linear acceleration
   my_pose_value.dynamic.linear.acceleration = parent_pose_value.dynamic.linear.acceleration
-                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.angular.velocity) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) * manipulator->getAxis(my_name))
-                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.linear.velocity) * manipulator->getAxis(my_name))
-                                            + (manipulator->getJointAcceleration(my_name) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) *  manipulator->getAxis(my_name));
+                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.angular.velocity) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) * joint_axis)
+                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.linear.velocity) * joint_axis)
+                                            + (manipulator->getJointAcceleration(my_name) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) *  joint_axis);
   //angular acceleration
   my_pose_value.dynamic.angular.acceleration = parent_pose_value.dynamic.angular.acceleration
-                                             + (manipulator->getJointVelocity(my_name) * manipulator->getAxis(my_name))
-                                             + (manipulator->getJointAcceleration(my_name) * manipulator->getAxis(my_name));
+                                             + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.angular.velocity) * joint_axis)
+                                             + (manipulator->getJointAcceleration(my_name) * joint_axis);
 
   manipulator->setComponentPoseFromWorld(my_name, my_pose_value);
 
@@ -851,10 +858,10 @@ void SolverUsingCRAndSRPositionOnlyJacobian::forwardSolverUsingChainRule(Manipul
   }
 }
 
-bool SolverUsingCRAndSRPositionOnlyJacobian::inverseSolverUsingPositionOnlySRJacobian(Manipulator *manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
+bool SolverUsingCRAndSRPositionOnlyJacobian::inverseSolverUsingPositionOnlySRJacobian(Manipulator manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
 {
   //manipulator
-  Manipulator _manipulator = *manipulator;
+  Manipulator _manipulator = manipulator;
 
   //solver parameter
   double lambda = 0.0;
@@ -986,7 +993,7 @@ bool SolverUsingCRAndSRPositionOnlyJacobian::inverseSolverUsingPositionOnlySRJac
       log::println("------------------------------------");
       #endif
       //////////////////////////debug//////////////////////////////////
-      *goal_joint_value = inverseDynamicSolver(_manipulator, tool_name, target_pose);
+      *goal_joint_value = inverseVelAccSolver(_manipulator, tool_name, target_pose);
       return true;
     }
     else if (new_Ek < pre_Ek)
@@ -1064,7 +1071,7 @@ void SolverCustomizedforOMChain::solveForwardKinematics(Manipulator *manipulator
   forwardSolverUsingChainRule(manipulator, manipulator->getWorldChildName());
 }
 
-bool SolverCustomizedforOMChain::solveInverseKinematics(Manipulator *manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
+bool SolverCustomizedforOMChain::solveInverseKinematics(Manipulator manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
 {
   return chainCustomInverseKinematics(manipulator, tool_name, target_pose, goal_joint_value);
 }
@@ -1117,7 +1124,7 @@ Eigen::MatrixXd SolverCustomizedforOMChain::jacobianDot(Manipulator *manipulator
   return jacobian_dot;
 }
 
-std::vector<JointValue> SolverCustomizedforOMChain::inverseDynamicSolver(Manipulator manipulator, Name tool_name, Pose target_pose)
+std::vector<JointValue> SolverCustomizedforOMChain::inverseVelAccSolver(Manipulator manipulator, Name tool_name, Pose target_pose)
 {
   Eigen::MatrixXd jacobian = Eigen::MatrixXd::Identity(6, manipulator.getDOF());
   jacobian = this->jacobian(&manipulator, tool_name);
@@ -1175,37 +1182,40 @@ void SolverCustomizedforOMChain::forwardSolverUsingChainRule(Manipulator *manipu
 
   Pose parent_pose_value;
   Pose my_pose_value;
+  Eigen::Vector3d joint_axis = Eigen::Vector3d::Zero(3);
 
   //Get Parent Pose
   if (parent_name == manipulator->getWorldName())
   {
     parent_pose_value = manipulator->getWorldPose();
+    joint_axis = manipulator->getWorldOrientation() * manipulator->getAxis(my_name);
   }
   else
   {
     parent_pose_value = manipulator->getComponentPoseFromWorld(parent_name);
+    joint_axis = manipulator->getComponentOrientationFromWorld(parent_name) * manipulator->getAxis(my_name);
   }
 
   //position
   my_pose_value.kinematic.position = parent_pose_value.kinematic.position
                                    + (parent_pose_value.kinematic.orientation * manipulator->getComponentRelativePositionFromParent(my_name));
   //orientation
-  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * math::rodriguesRotationMatrix(manipulator->getAxis(my_name), manipulator->getJointPosition(my_name));
+  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * math::rodriguesRotationMatrix(joint_axis, manipulator->getJointPosition(my_name));
   //linear velocity
   my_pose_value.dynamic.linear.velocity = parent_pose_value.dynamic.linear.velocity
-                                        + (manipulator->getJointVelocity(my_name) * (math::skewSymmetricMatrix(my_pose_value.kinematic.position) * manipulator->getAxis(my_name)));
+                                        + (manipulator->getJointVelocity(my_name) * (math::skewSymmetricMatrix(my_pose_value.kinematic.position) * joint_axis));
   //angular velocity
   my_pose_value.dynamic.angular.velocity = parent_pose_value.dynamic.angular.velocity
-                                         + (manipulator->getJointVelocity(my_name) * manipulator->getAxis(my_name));
+                                         + (manipulator->getJointVelocity(my_name) * joint_axis);
   //linear acceleration
   my_pose_value.dynamic.linear.acceleration = parent_pose_value.dynamic.linear.acceleration
-                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.angular.velocity) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) * manipulator->getAxis(my_name))
-                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.linear.velocity) * manipulator->getAxis(my_name))
-                                            + (manipulator->getJointAcceleration(my_name) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) *  manipulator->getAxis(my_name));
+                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.angular.velocity) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) * joint_axis)
+                                            + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.linear.velocity) * joint_axis)
+                                            + (manipulator->getJointAcceleration(my_name) * math::skewSymmetricMatrix(my_pose_value.kinematic.position) *  joint_axis);
   //angular acceleration
   my_pose_value.dynamic.angular.acceleration = parent_pose_value.dynamic.angular.acceleration
-                                             + (manipulator->getJointVelocity(my_name) * manipulator->getAxis(my_name))
-                                             + (manipulator->getJointAcceleration(my_name) * manipulator->getAxis(my_name));
+                                             + (manipulator->getJointVelocity(my_name) * math::skewSymmetricMatrix(parent_pose_value.dynamic.angular.velocity) * joint_axis)
+                                             + (manipulator->getJointAcceleration(my_name) * joint_axis);
 
   manipulator->setComponentPoseFromWorld(my_name, my_pose_value);
 
@@ -1215,10 +1225,10 @@ void SolverCustomizedforOMChain::forwardSolverUsingChainRule(Manipulator *manipu
     forwardSolverUsingChainRule(manipulator, child_name);
   }
 }
-bool SolverCustomizedforOMChain::chainCustomInverseKinematics(Manipulator *manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
+bool SolverCustomizedforOMChain::chainCustomInverseKinematics(Manipulator manipulator, Name tool_name, Pose target_pose, std::vector<JointValue> *goal_joint_value)
 {
   //manipulator
-  Manipulator _manipulator = *manipulator;
+  Manipulator _manipulator = manipulator;
 
   //solver parameter
   double lambda = 0.0;
@@ -1364,7 +1374,7 @@ bool SolverCustomizedforOMChain::chainCustomInverseKinematics(Manipulator *manip
       log::println("------------------------------------");
       #endif
       //////////////////////////debug//////////////////////////////////
-      *goal_joint_value = inverseDynamicSolver(_manipulator, tool_name, target_pose);
+      *goal_joint_value = inverseVelAccSolver(_manipulator, tool_name, target_pose);
       return true;
     }
     else if (new_Ek < pre_Ek)
