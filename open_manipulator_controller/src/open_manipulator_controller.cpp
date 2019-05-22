@@ -571,12 +571,14 @@ bool OpenManipulatorController::calcPlannedPath(const std::string planning_group
   bool is_planned = false;
   geometry_msgs::Pose target_pose = msg.pose;
 
+
   move_group_->setPoseTarget(target_pose);
 
   move_group_->setMaxVelocityScalingFactor(msg.max_velocity_scaling_factor);
   move_group_->setMaxAccelerationScalingFactor(msg.max_accelerations_scaling_factor);
 
   move_group_->setGoalTolerance(msg.tolerance);
+
 
   moveit::planning_interface::MoveGroupInterface::Plan my_plan;
 

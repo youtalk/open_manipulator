@@ -203,7 +203,7 @@ void SolverUsingCRAndJacobian::forwardSolverUsingChainRule(Manipulator *manipula
   my_pose_value.kinematic.position = parent_pose_value.kinematic.position
                                    + (parent_pose_value.kinematic.orientation * manipulator->getComponentRelativePositionFromParent(my_name));
   //orientation
-  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * math::rodriguesRotationMatrix(joint_axis, manipulator->getJointPosition(my_name));
+  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * manipulator->getComponentRelativeOrientationFromParent(my_name) * math::rodriguesRotationMatrix(joint_axis, manipulator->getJointPosition(my_name));
   //linear velocity
   my_pose_value.dynamic.linear.velocity = parent_pose_value.dynamic.linear.velocity
                                         + (manipulator->getJointVelocity(my_name) * (math::skewSymmetricMatrix(my_pose_value.kinematic.position) * joint_axis));
@@ -458,7 +458,7 @@ void SolverUsingCRAndSRJacobian::forwardSolverUsingChainRule(Manipulator *manipu
   my_pose_value.kinematic.position = parent_pose_value.kinematic.position
                                    + (parent_pose_value.kinematic.orientation * manipulator->getComponentRelativePositionFromParent(my_name));
   //orientation
-  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * math::rodriguesRotationMatrix(joint_axis, manipulator->getJointPosition(my_name));
+  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * manipulator->getComponentRelativeOrientationFromParent(my_name) * math::rodriguesRotationMatrix(joint_axis, manipulator->getJointPosition(my_name));
   //linear velocity
   my_pose_value.dynamic.linear.velocity = parent_pose_value.dynamic.linear.velocity
                                         + (manipulator->getJointVelocity(my_name) * (math::skewSymmetricMatrix(my_pose_value.kinematic.position) * joint_axis));
@@ -832,7 +832,7 @@ void SolverUsingCRAndSRPositionOnlyJacobian::forwardSolverUsingChainRule(Manipul
   my_pose_value.kinematic.position = parent_pose_value.kinematic.position
                                    + (parent_pose_value.kinematic.orientation * manipulator->getComponentRelativePositionFromParent(my_name));
   //orientation
-  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * math::rodriguesRotationMatrix(joint_axis, manipulator->getJointPosition(my_name));
+  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * manipulator->getComponentRelativeOrientationFromParent(my_name) * math::rodriguesRotationMatrix(joint_axis, manipulator->getJointPosition(my_name));
   //linear velocity
   my_pose_value.dynamic.linear.velocity = parent_pose_value.dynamic.linear.velocity
                                         + (manipulator->getJointVelocity(my_name) * (math::skewSymmetricMatrix(my_pose_value.kinematic.position) * joint_axis));
@@ -1200,7 +1200,7 @@ void SolverCustomizedforOMChain::forwardSolverUsingChainRule(Manipulator *manipu
   my_pose_value.kinematic.position = parent_pose_value.kinematic.position
                                    + (parent_pose_value.kinematic.orientation * manipulator->getComponentRelativePositionFromParent(my_name));
   //orientation
-  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * math::rodriguesRotationMatrix(joint_axis, manipulator->getJointPosition(my_name));
+  my_pose_value.kinematic.orientation = parent_pose_value.kinematic.orientation * manipulator->getComponentRelativeOrientationFromParent(my_name) * math::rodriguesRotationMatrix(joint_axis, manipulator->getJointPosition(my_name));
   //linear velocity
   my_pose_value.dynamic.linear.velocity = parent_pose_value.dynamic.linear.velocity
                                         + (manipulator->getJointVelocity(my_name) * (math::skewSymmetricMatrix(my_pose_value.kinematic.position) * joint_axis));

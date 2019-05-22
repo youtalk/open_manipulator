@@ -31,6 +31,7 @@ using namespace dynamics;
 bool SolverUsingNewtonEuler::setExterrnalEffort(std::unordered_map<Name, Eigen::VectorXd> external_effort)
 {
   external_effort_ = external_effort;
+  return true;
 }
 
 ////////////////////////////////////////////////////////////////
@@ -61,5 +62,15 @@ bool SolverUsingNewtonEuler::solveForwardDynamics(Manipulator *manipulator, std:
 
 }
 
-bool SolverUsingNewtonEuler::solveInverseDynamics(Manipulator manipulator, std::vector<double>* joint_torque){}
+bool SolverUsingNewtonEuler::solveInverseDynamics(Manipulator manipulator, std::vector<double>* joint_torque)
+{
+  Name my_name;
+  Eigen::Vector3d my_center_of_mass = Eigen::Vector3d::Zero();
+  Eigen::Matrix3d my_inertia_tensor = Eigen::Matrix3d::Identity();
+
+  my_center_of_mass = manipulator.getComponentPositionFromWorld(my_name) + manipulator.getComponentOrientationFromWorld(my_name)*manipulator.getComponentCenterOfMass(my_name);
+  my_inertia_tensor = manipulator.getComponentOrientationFromWorld(my_name) * manipulator.getComponentInertiaTensor(my_name)*manipulator.getComponentOrientationFromWorld(my_name).transpose();
+  my_inertia_tensor + manipulator.getComponentMass(my_name)*math::skewSymmetricMatrix(my_center_of_mass)*math::skewSymmetricMatrix(my_center_of_mass).transpose();
+
+}
 ////////////////////////////////////////////////////////////////
