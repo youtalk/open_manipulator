@@ -50,7 +50,7 @@
     <child link="link2"/>
     <origin xyz="0.012 0.0 0.017" rpy="0 0 0"/>
     <axis xyz="0 0 1"/>
-    <limit velocity="4.8" effort="1" lower="-2.82743338823" upper="2.82743338823" />
+    <limit velocity="4.8" effort="1" lower="-1.5708" upper="1.5708" />
   </joint>
 
   <!--  Link 2 -->
@@ -85,7 +85,7 @@
     <child link="link3"/>
     <origin xyz="0.0 0.0 0.0595" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
-    <limit velocity="4.8" effort="1" lower="-1.79070781255" upper="1.57079632679" />
+    <limit velocity="4.8" effort="1" lower="0.0" upper="2.0" />
   </joint>
 
   <!--  Link 3 -->
@@ -120,7 +120,7 @@
     <child link="link4"/>
     <origin xyz="0.024 0 0.128" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
-    <limit velocity="4.8" effort="1" lower="-0.94247779607" upper="1.38230076758" />
+    <limit velocity="4.8" effort="1" lower="-2.0" upper="1.38230076758" />
   </joint>
 
   <!--  Link 4 -->
@@ -155,7 +155,7 @@
     <child link="link5"/>
     <origin xyz="0.124 0.0 0.0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
-    <limit velocity="4.8" effort="1" lower="-1.79070781255" upper="2.04203522483" />
+    <limit velocity="4.8" effort="1" lower="-0.7" upper="2.04203522483" />
   </joint>
 
   <!--  Link 5 -->
