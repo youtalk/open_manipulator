@@ -485,6 +485,8 @@ void OpenManipulatorXController::publish_open_manipulator_x_states()
 void OpenManipulatorXController::publish_kinematics_pose()
 {
   open_manipulator_msgs::msg::KinematicsPose msg;
+  msg.header.stamp = rclcpp::Clock().now();
+
   auto tools_name = open_manipulator_x_.getManipulator()->getAllToolComponentName();
 
   uint8_t index = 0;
