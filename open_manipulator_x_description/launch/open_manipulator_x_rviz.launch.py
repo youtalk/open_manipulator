@@ -23,6 +23,8 @@ from launch import LaunchDescription
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+import xacro
+
 
 def generate_launch_description():
     # Arguments
@@ -33,15 +35,16 @@ def generate_launch_description():
         'open_manipulator_x_description'), 'rviz', 'open_manipulator_x.rviz')
     urdf_file = os.path.join(get_package_share_directory(
         'open_manipulator_x_description'), 'urdf', 'open_manipulator_x_robot.urdf.xacro')
+    robot_description_config = xacro.process_file(urdf_file)
 
     return LaunchDescription([
         Node(
             package='joint_state_publisher',
             node_executable='joint_state_publisher',
             node_name='joint_state_publisher',
-            arguments=[urdf_file],
             parameters=[{'use_gui': use_gui},
-                        {'source_list': ['joint_states']}],
+                        {'source_list': ['joint_states']},
+                        {'robot_description': robot_description_config.toxml()}],
             output='screen'),
 
         Node(
